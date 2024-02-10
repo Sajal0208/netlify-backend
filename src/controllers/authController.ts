@@ -1,33 +1,76 @@
-import jwt from "jsonwebtoken";
 import { Request, Response } from "express";
+import {
+  createUser,
+  generateHashedPassword,
+  generateToken,
+  getUserById,
+  validateLoginData,
+  validateRegisterData,
+} from "../services/userService";
+import { CustomRequest } from "../middleware/authMiddleware";
 
 export const registerUser = async (req: Request, res: Response) => {
   const { email, username, password } = req.body;
-  // Check if email and username exists and blah blah validation steps...
 
-  // If every validation passes, store it in the Database
+  const isValid = validateRegisterData({ email, username, password });
 
-  // Create a JWT Token
-  const token = jwt.sign({ email }, process.env.ACCESS_TOKEN_SECRET as string);
+  if (!isValid) {
+    return res.status(400).json({ error: "Invalid data" });
+  }
 
-  // Store the token in the cookie
+  const hashedPassword = await generateHashedPassword(password);
+
+  const user = await createUser(email, username, hashedPassword);
+
+  if (!user) {
+    return res.status(500).json({ error: "Server error" });
+  }
+
+  const token = await generateToken(user.id);
+  console.log(token);
+
   res.cookie("authcookie", token, { maxAge: 900000, httpOnly: true });
+
+  res.send({
+    id: user.id,
+    email: user.email,
+    username: user.username,
+  });
 };
 
 export const loginUser = async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
-  // Check if email exists and match passwords
+  const user = await validateLoginData({ email, password });
 
-  // If every validation passes, create a JWT token
-  const token = jwt.sign({ email }, process.env.ACCESS_TOKEN_SECRET as string);
+  if (!user) {
+    return res.status(400).json({ error: "Invalid data" });
+  }
 
-  // Store the token in the cookie
+  const token = await generateToken(email);
+
   res.cookie("authcookie", token, { maxAge: 900000, httpOnly: true });
+
+  res.send({
+    id: user.id,
+    email: user.email,
+    username: user.username,
+  });
 };
 
-export const getMe = async (req: Request, res: Response) => {
-  // Get the user from the JWT token
-  const user = req.user;
+export const getMe = async (req: CustomRequest, res: Response) => {
+  const userId = req.userId;
+
+  if (!userId) {
+    return res.status(400).json({ error: "Invalid data" });
+  }
+
+  const user = await getUserById(userId);
+
   res.send(user);
+};
+
+export const logoutUser = async (req: Request, res: Response) => {
+  res.clearCookie("authcookie");
+  res.send("Logged out");
 };
