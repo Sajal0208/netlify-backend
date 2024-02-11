@@ -1,8 +1,12 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import { checkUserExists } from "../services/authService";
 
 export interface CustomRequest extends Request {
-  userId?: number;
+  user?: {
+    id: number;
+    username: string;
+  };
 }
 
 const verifyToken = (token: any) =>
@@ -28,21 +32,21 @@ export async function authenticateToken(
   res: Response,
   next: NextFunction
 ) {
-  console.log("cookies", req.cookies);
-  console.log("request obj", req);
   const authCookie = req.cookies["authcookie"];
-  console.log("authCookie", authCookie);
-  console.log("I am here1");
-
   // If there is no cookie, return an error
   if (authCookie === null) return res.sendStatus(401);
-
   // If there is a cookie, verify it
   try {
     const payload: any = await verifyToken(authCookie);
-    console.log(payload);
-    console.log("I am here2");
-    req.userId = payload.userId;
+    const user = await checkUserExists(payload.userId);
+    if (!user) {
+      return res.sendStatus(403);
+    }
+    req.user = {
+      id: payload.userId as number,
+      username: user.username as string,
+    };
+
     next();
   } catch (e) {
     return res.sendStatus(403);

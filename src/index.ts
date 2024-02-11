@@ -5,7 +5,7 @@ import cookieParser from "cookie-parser";
 import { errorHandler } from "./middleware/errorMiddleware";
 import * as dotenv from "dotenv";
 import authRoute from "./routes/authRoute";
-
+import projectRoute from "./routes/projectRoutes";
 import "express-async-errors"; // <---------- apply async error patch
 
 dotenv.config();
@@ -16,6 +16,7 @@ app.use(express.json());
 app.use(cookieParser());
 
 app.use("/api/auth", authRoute);
+app.use("/api/projects", projectRoute);
 
 app.use(errorHandler);
 
