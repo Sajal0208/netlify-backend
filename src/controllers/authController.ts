@@ -9,6 +9,8 @@ import {
 } from "../services/authService";
 import { CustomRequest } from "../middleware/authMiddleware";
 import BadRequestError from "../errors/BadRequestError";
+import NotFoundError from "../errors/NotFoundError";
+import { prisma } from "../lib/db";
 
 export const registerUser = async (
   req: Request,
@@ -57,7 +59,13 @@ export const loginUser = async (
 
     const user = await validateLoginData({ email, password }, next);
 
-    const token = await generateToken(email);
+    if (!user) {
+      throw new NotFoundError({
+        message: "User Not Found",
+      });
+    }
+
+    const token = await generateToken(user.id);
 
     res.cookie("authcookie", token, { maxAge: 900000, httpOnly: true });
 
@@ -102,4 +110,32 @@ export const getMe = async (
 export const logoutUser = async (req: Request, res: Response) => {
   res.clearCookie("authcookie");
   res.send("Logged out");
+};
+
+export const getUserByUsername = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: {
+        username: req.body.username,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundError({
+        message: "User Not Found",
+      });
+    }
+
+    return res.json({
+      id: user!.id,
+      email: user!.email,
+      username: user!.username,
+    });
+  } catch (e) {
+    next(e);
+  }
 };
