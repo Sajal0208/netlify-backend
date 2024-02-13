@@ -112,7 +112,7 @@ export const logoutUser = async (req: Request, res: Response) => {
   res.send("Logged out");
 };
 
-export const getUserByUsername = async (
+export const getUserWithProject = async (
   req: Request,
   res: Response,
   next: NextFunction
@@ -121,6 +121,14 @@ export const getUserByUsername = async (
     const user = await prisma.user.findUnique({
       where: {
         username: req.body.username,
+      },
+      include: {
+        projects: {
+          where: {
+            title: req.body.title,
+          },
+          take: 1,
+        },
       },
     });
 
@@ -131,9 +139,8 @@ export const getUserByUsername = async (
     }
 
     return res.json({
-      id: user!.id,
-      email: user!.email,
-      username: user!.username,
+      user,
+      project: user.projects,
     });
   } catch (e) {
     next(e);

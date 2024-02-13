@@ -24,8 +24,8 @@ model Projects {
   updatedAt        DateTime @updatedAt
   title            String   @db.VarChar(255)
   repoUrl          String   @db.VarChar(255)
-  customDomain     String?  @db.VarChar(20)
-  deployedLink     String?
+  siteName         String?  @db.VarChar(20)
+  deployedLink     String
   deploymentStatus String?
   author           User     @relation(fields: [authorId], references: [id])
   authorId         Int

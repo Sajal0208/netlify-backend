@@ -4,7 +4,7 @@ import {
   registerUser,
   getMe,
   logoutUser,
-  getUserByUsername,
+  getUserWithProject,
 } from "../controllers/authController";
 import { authenticateToken } from "../middleware/authMiddleware";
 const router = express.Router();
@@ -16,6 +16,6 @@ router.post("/register", registerUser);
 router.post("/login", loginUser);
 router.get("/me", authenticateToken, getMe);
 router.post("/logout", logoutUser);
-router.post("/username", getUserByUsername);
+router.post("/userWithProject", getUserWithProject);
 
 export default router;
