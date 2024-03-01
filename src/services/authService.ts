@@ -102,12 +102,29 @@ export const comparePassword = async (
   return isMatch;
 };
 
-export const generateToken = async (userId: number) => {
-  const token = await jwt.sign(
-    { userId },
-    process.env.ACCESS_TOKEN_SECRET as string
-  );
-  return token;
+export const generateToken = async (
+  userId: number,
+  type: string,
+  next: NextFunction
+) => {
+  try {
+    const token = await jwt.sign(
+      { userId },
+      type === "access"
+        ? (process.env.ACCESS_TOKEN_SECRET as string)
+        : (process.env.REFRESH_TOKEN_SECRET as string),
+      {
+        expiresIn:
+          type === "access"
+            ? process.env.ACCESS_TOKEN_LIFE
+            : process.env.REFRESH_TOKEN_LIFE,
+      }
+    );
+    console.log(token);
+    return token;
+  } catch (error: any) {
+    next(error);
+  }
 };
 
 export const validateLoginData = async (
@@ -154,11 +171,17 @@ export const getUserById = async (id: number) => {
 };
 
 export const checkUserExists = async (id: number) => {
-  const user = await getUserById(id);
-  if (!user) {
+  try {
+    const user = await getUserById(id);
+    if (!user) {
+      throw new BadRequestError({
+        message: "User not found",
+      });
+    }
+    return user;
+  } catch (e: any) {
     throw new BadRequestError({
       message: "User not found",
     });
   }
-  return user;
 };

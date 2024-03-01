@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import {
+  checkUserExists,
   createUser,
   generateHashedPassword,
   generateToken,
@@ -7,7 +8,7 @@ import {
   validateLoginData,
   validateRegisterData,
 } from "../services/authService";
-import { CustomRequest } from "../middleware/authMiddleware";
+import { CustomRequest, verifyToken } from "../middleware/authMiddleware";
 import BadRequestError from "../errors/BadRequestError";
 import NotFoundError from "../errors/NotFoundError";
 import { prisma } from "../lib/db";
@@ -34,15 +35,22 @@ export const registerUser = async (
       return res.status(500).json({ error: "Server error" });
     }
 
-    const token = await generateToken(user.id);
-    console.log(token);
+    const accessToken = await generateToken(user.id, "access", next);
+    const refreshToken = await generateToken(user.id, "refresh", next);
 
-    res.cookie("authcookie", token, { maxAge: 900000, httpOnly: true });
+    res.cookie("refreshToken", refreshToken, {
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      httpOnly: true,
+      signed: true,
+      expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
 
     res.send({
       id: user.id,
       email: user.email,
       username: user.username,
+      token: accessToken,
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000),
     });
   } catch (error: any) {
     next(error);
@@ -65,14 +73,22 @@ export const loginUser = async (
       });
     }
 
-    const token = await generateToken(user.id);
+    const accessToken = await generateToken(user.id, "access", next);
+    const refreshToken = await generateToken(user.id, "refresh", next);
 
-    res.cookie("authcookie", token, { maxAge: 900000, httpOnly: true });
+    res.cookie("refreshToken", refreshToken, {
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      httpOnly: true,
+      signed: true,
+      expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
 
     res.send({
-      id: user!.id,
-      email: user!.email,
-      username: user!.username,
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      token: accessToken,
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000),
     });
   } catch (e) {
     next(e);
@@ -144,5 +160,38 @@ export const getUserWithProject = async (
     });
   } catch (e) {
     next(e);
+  }
+};
+
+export const getRefreshToken = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const refreshToken = req.cookies["refreshToken"];
+
+  console.log(refreshToken);
+  if (!refreshToken) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  console.log(refreshToken);
+
+  try {
+    const payload: any = await verifyToken(refreshToken, "refresh");
+    const user = await checkUserExists(payload.userId);
+
+    if (!user) {
+      return res.status(403).json({ error: "Forbidden" });
+    }
+
+    const accessToken = await generateToken(user.id, "access", next);
+
+    res.send({
+      token: accessToken,
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+    });
+  } catch (e) {
+    res.status(403).json({ error: "Forbidden" });
   }
 };

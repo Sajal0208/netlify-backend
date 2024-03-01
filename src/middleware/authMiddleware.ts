@@ -5,20 +5,18 @@ import { checkUserExists } from "../services/authService";
 export interface CustomRequest extends Request {
   user?: {
     id: number;
-    username: string;
   };
 }
 
-const verifyToken = (token: any) =>
+export const verifyToken = (token: any, type: string) =>
   new Promise((resolve, reject) => {
-    console.log("I am here3");
     jwt.verify(
       token,
-      process.env.ACCESS_TOKEN_SECRET as string,
+      type === "access"
+        ? (process.env.ACCESS_TOKEN_SECRET as string)
+        : (process.env.REFRESH_TOKEN_SECRET as string),
       (error: any, payload: any) => {
         if (error) {
-          console.log("I am here4");
-          console.log(`error: ${error}`);
           reject(error);
         } else {
           resolve(payload);
@@ -32,19 +30,19 @@ export async function authenticateToken(
   res: Response,
   next: NextFunction
 ) {
-  const authCookie = req.cookies["authcookie"];
+  const accessToken =
+    req.headers["authorization"] || req.headers["Authorization"];
   // If there is no cookie, return an error
-  if (authCookie === null) return res.sendStatus(401);
+  if (accessToken === null) return res.sendStatus(401);
   // If there is a cookie, verify it
   try {
-    const payload: any = await verifyToken(authCookie);
+    const payload: any = await verifyToken(accessToken, "access");
     const user = await checkUserExists(payload.userId);
     if (!user) {
       return res.sendStatus(403);
     }
     req.user = {
       id: payload.userId as number,
-      username: user.username as string,
     };
 
     next();
