@@ -12,6 +12,7 @@ import { CustomRequest, verifyToken } from "../middleware/authMiddleware";
 import BadRequestError from "../errors/BadRequestError";
 import NotFoundError from "../errors/NotFoundError";
 import { prisma } from "../lib/db";
+import jwt from "jsonwebtoken";
 
 export const registerUser = async (
   req: Request,
@@ -36,12 +37,25 @@ export const registerUser = async (
     }
 
     const accessToken = await generateToken(user.id, "access", next);
-    const refreshToken = await generateToken(user.id, "refresh", next);
+    const newRefreshToken = await generateToken(user.id, "refresh", next);
 
-    res.cookie("refreshToken", refreshToken, {
+    await prisma.user.update({
+      where: {
+        id: user.id,
+      },
+      data: {
+        refreshToken: {
+          push: newRefreshToken,
+        },
+      },
+    });
+
+    res.cookie("refreshToken", newRefreshToken, {
       maxAge: 7 * 24 * 60 * 60 * 1000,
       httpOnly: true,
       signed: true,
+      sameSite: "none",
+      secure: true,
       expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });
 
@@ -62,6 +76,7 @@ export const loginUser = async (
   res: Response,
   next: NextFunction
 ) => {
+  const cookies = req.cookies;
   try {
     const { email, password } = req.body;
 
@@ -74,12 +89,47 @@ export const loginUser = async (
     }
 
     const accessToken = await generateToken(user.id, "access", next);
-    const refreshToken = await generateToken(user.id, "refresh", next);
+    const newRefreshToken = await generateToken(user.id, "refresh", next);
 
-    res.cookie("refreshToken", refreshToken, {
+    let newRefreshTokenArray = !cookies?.refreshToken
+      ? user.refreshToken
+      : user.refreshToken.filter((rt) => rt !== cookies.refreshToken);
+
+    if (cookies?.refreshToken) {
+      const refreshToken = cookies.refreshToken;
+      const foundToken = await prisma.user.findFirst({
+        where: {
+          refreshToken: {
+            hasSome: [refreshToken],
+          },
+        },
+      });
+
+      if (!foundToken) {
+        newRefreshTokenArray = [];
+      }
+
+      res.clearCookie("refreshToken");
+    }
+
+    await prisma.user.update({
+      where: {
+        id: user.id,
+      },
+      data: {
+        refreshToken: {
+          push: newRefreshToken,
+          set: newRefreshTokenArray,
+        },
+      },
+    });
+
+    res.cookie("refreshToken", newRefreshToken, {
       maxAge: 7 * 24 * 60 * 60 * 1000,
       httpOnly: true,
       signed: true,
+      sameSite: "none",
+      secure: true,
       expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });
 
@@ -163,35 +213,132 @@ export const getUserWithProject = async (
   }
 };
 
-export const getRefreshToken = async (
+export const handleRefreshToken = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
-  const refreshToken = req.cookies["refreshToken"];
+  // const refreshToken = req.cookies["refreshToken"];
 
-  console.log(refreshToken);
-  if (!refreshToken) {
+  // console.log(refreshToken);
+  // if (!refreshToken) {
+  //   return res.status(401).json({ error: "Unauthorized" });
+  // }
+
+  // console.log(refreshToken);
+
+  // try {
+  //   const payload: any = await verifyToken(refreshToken, "refresh");
+  //   const user = await checkUserExists(payload.userId);
+
+  //   if (!user) {
+  //     return res.status(403).json({ error: "Forbidden" });
+  //   }
+
+  //   const accessToken = await generateToken(user.id, "access", next);
+
+  //   res.send({
+  //     token: accessToken,
+  //     expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+  //   });
+  // } catch (e) {
+  //   res.status(403).json({ error: "Forbidden" });
+  // }
+
+  const cookies = req.cookies;
+  if (!cookies?.refreshToken) {
     return res.status(401).json({ error: "Unauthorized" });
   }
 
-  console.log(refreshToken);
+  const refreshToken = cookies.refreshToken;
+  res.clearCookie("refreshToken");
 
-  try {
-    const payload: any = await verifyToken(refreshToken, "refresh");
-    const user = await checkUserExists(payload.userId);
+  const foundUser = await prisma.user.findFirst({
+    where: {
+      refreshToken: {
+        hasSome: [refreshToken],
+      },
+    },
+  });
 
-    if (!user) {
-      return res.status(403).json({ error: "Forbidden" });
-    }
-
-    const accessToken = await generateToken(user.id, "access", next);
-
-    res.send({
-      token: accessToken,
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000),
-    });
-  } catch (e) {
-    res.status(403).json({ error: "Forbidden" });
+  if (!foundUser) {
+    jwt.verify(
+      refreshToken,
+      process.env.REFRESH_TOKEN_SECRET as string,
+      async (err: any, decoded: any) => {
+        if (err) return res.sendStatus(403); //Forbidden
+        // Delete refresh tokens of hacked user
+        const hackedUser = await prisma.user.update({
+          where: {
+            id: decoded.userId,
+          },
+          data: {
+            refreshToken: {
+              set: [],
+            },
+          },
+        });
+      }
+    );
+    return res.sendStatus(403); //Forbidden
   }
+
+  const newRefreshTokenArray = foundUser.refreshToken.filter(
+    (rt) => rt !== refreshToken
+  );
+
+  jwt.verify(
+    refreshToken,
+    process.env.REFRESH_TOKEN_SECRET as string,
+    async (err: any, decoded: any) => {
+      if (err) {
+        // expired refresh token
+        foundUser.refreshToken = [...newRefreshTokenArray];
+        await prisma.user.update({
+          where: {
+            id: foundUser.id,
+          },
+          data: {
+            refreshToken: {
+              set: foundUser.refreshToken,
+            },
+          },
+        });
+      }
+      if (err || foundUser.id !== decoded.userId) return res.sendStatus(403);
+
+      const accessToken = await generateToken(foundUser.id, "access", next);
+      const newRefreshToken = await generateToken(
+        foundUser.id,
+        "refresh",
+        next
+      );
+
+      await prisma.user.update({
+        where: {
+          id: foundUser.id,
+        },
+        data: {
+          refreshToken: {
+            push: newRefreshToken,
+            set: newRefreshTokenArray,
+          },
+        },
+      });
+
+      res.cookie("refreshToken", newRefreshToken, {
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+        httpOnly: true,
+        signed: true,
+        sameSite: "none",
+        secure: true,
+        expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      });
+
+      res.send({
+        token: accessToken,
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+      });
+    }
+  );
 };

@@ -120,7 +120,6 @@ export const generateToken = async (
             : process.env.REFRESH_TOKEN_LIFE,
       }
     );
-    console.log(token);
     return token;
   } catch (error: any) {
     next(error);

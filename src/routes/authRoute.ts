@@ -5,19 +5,16 @@ import {
   getMe,
   logoutUser,
   getUserWithProject,
-  getRefreshToken,
+  handleRefreshToken,
 } from "../controllers/authController";
 import { authenticateToken } from "../middleware/authMiddleware";
 const router = express.Router();
 
-router.get("/", (req, res) => {
-  res.send("Hello World");
-});
 router.post("/register", registerUser);
 router.post("/login", loginUser);
 router.get("/me", authenticateToken, getMe);
 router.post("/logout", logoutUser);
 router.post("/userWithProject", getUserWithProject);
-router.get("/refresh", getRefreshToken);
+router.get("/refresh", handleRefreshToken);
 
 export default router;

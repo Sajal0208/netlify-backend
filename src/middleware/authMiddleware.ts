@@ -32,9 +32,9 @@ export async function authenticateToken(
 ) {
   const accessToken =
     req.headers["authorization"] || req.headers["Authorization"];
-  // If there is no cookie, return an error
+
   if (accessToken === null) return res.sendStatus(401);
-  // If there is a cookie, verify it
+
   try {
     const payload: any = await verifyToken(accessToken, "access");
     const user = await checkUserExists(payload.userId);

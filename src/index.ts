@@ -12,7 +12,9 @@ import { Socket } from "socket.io";
 const { Server } = require("socket.io");
 
 dotenv.config();
+
 const app = express();
+
 const io = new Server({
   cors: {
     origin: "*",
@@ -32,6 +34,7 @@ io.on("connection", (socket: Socket) => {
     socket.emit("subscribed", channel);
   });
 });
+
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(cors());
 app.use(express.json());
@@ -39,6 +42,15 @@ app.use(cookieParser());
 
 app.use("/api/auth", authRoute);
 app.use("/api/projects", projectRoute);
+
+app.all("*", (req, res) => {
+  res.status(404);
+  if (req.accepts("json")) {
+    res.json({ error: "404 Not Found" });
+  } else {
+    res.type("txt").send("404 Not Found");
+  }
+});
 
 app.use(errorHandler);
 
