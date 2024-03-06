@@ -6,6 +6,7 @@ import { errorHandler } from "./middleware/errorMiddleware";
 import * as dotenv from "dotenv";
 import authRoute from "./routes/authRoute";
 import projectRoute from "./routes/projectRoutes";
+const { logger } = require("./middleware/logEvents");
 import "express-async-errors"; // <---------- apply async error patch
 import Redis from "ioredis";
 import { Socket } from "socket.io";
@@ -35,6 +36,7 @@ io.on("connection", (socket: Socket) => {
   });
 });
 
+app.use(logger);
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(
   cors({
