@@ -1,11 +1,8 @@
-import simpleGit from "simple-git";
 import { IDeployProjectData } from "../controllers/projectController";
 import { prisma } from "../lib/db";
 import axios from "axios";
-import { generateId } from "../utils";
 import { NextFunction } from "express";
 import { ECSClient, RunTaskCommand } from "@aws-sdk/client-ecs";
-import ECSSingleton from "../lib/aws";
 import { config } from "../lib/aws";
 import { generateSlug } from "random-word-slugs";
 

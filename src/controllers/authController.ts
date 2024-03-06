@@ -128,10 +128,7 @@ export const loginUser = async (
         id: user.id,
       },
       data: {
-        refreshToken: {
-          push: newRefreshToken,
-          set: newRefreshTokenArray,
-        },
+        refreshToken: [newRefreshToken!, ...newRefreshTokenArray],
       },
     });
 
