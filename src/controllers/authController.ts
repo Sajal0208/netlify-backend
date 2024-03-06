@@ -278,7 +278,6 @@ export const handleRefreshToken = async (
     async (err: any, decoded: any) => {
       if (err) {
         // expired refresh token
-        foundUser.refreshToken = [...newRefreshTokenArray];
         await prisma.user.update({
           where: {
             id: foundUser.id,
@@ -304,10 +303,7 @@ export const handleRefreshToken = async (
           id: foundUser.id,
         },
         data: {
-          refreshToken: {
-            push: newRefreshToken,
-            set: newRefreshTokenArray,
-          },
+          refreshToken: [newRefreshToken!, ...newRefreshTokenArray],
         },
       });
 

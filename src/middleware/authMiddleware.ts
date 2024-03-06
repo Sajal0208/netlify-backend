@@ -30,8 +30,9 @@ export async function authenticateToken(
   res: Response,
   next: NextFunction
 ) {
-  const accessToken =
-    req.headers["authorization"] || req.headers["Authorization"];
+  const token = req.headers["authorization"];
+
+  const accessToken = token?.split(" ")[1];
 
   if (accessToken === null) return res.sendStatus(401);
 
@@ -47,6 +48,7 @@ export async function authenticateToken(
 
     next();
   } catch (e) {
+    console.log(e);
     return res.sendStatus(403);
   }
 }
