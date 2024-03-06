@@ -6,6 +6,7 @@ import {
   runNewTask,
 } from "../services/projectService";
 import { NextFunction, Request, Response } from "express";
+import { prisma } from "../lib/db";
 
 export interface IDeployProjectData {
   title: string;
@@ -22,11 +23,20 @@ export const deployProject = async (
   try {
     const { title, repoUrl } = req.body;
 
-    const user = req.user;
+    if (!req.user) {
+      return res.status(401).send("Unauthorized");
+    }
+
+    const user = await prisma.user.findUnique({
+      where: {
+        id: req.user.id,
+      },
+    });
 
     if (!user) {
       return res.status(401).send("Unauthorized");
     }
+
     const { username, id } = user;
 
     const projectBody = await createProjectBody(
