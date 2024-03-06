@@ -183,8 +183,10 @@ export const getMe = async (
 };
 
 export const logoutUser = async (req: Request, res: Response) => {
-  res.clearCookie("authcookie");
-  res.send("Logged out");
+  res.clearCookie("refreshToken");
+  res.send({
+    message: "User logged out",
+  });
 };
 
 export const getUserWithProject = async (
