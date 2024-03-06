@@ -13,6 +13,7 @@ import BadRequestError from "../errors/BadRequestError";
 import NotFoundError from "../errors/NotFoundError";
 import { prisma } from "../lib/db";
 import jwt from "jsonwebtoken";
+import ServerError from "../errors/ServerError";
 
 export const registerUser = async (
   req: Request,
@@ -22,10 +23,15 @@ export const registerUser = async (
   try {
     const { email, username, password } = req.body;
 
-    const isValid = validateRegisterData({ email, username, password }, next);
+    const isValid = await validateRegisterData(
+      { email, username, password },
+      next
+    );
 
     if (!isValid) {
-      return res.status(400).json({ error: "Invalid data" });
+      throw new BadRequestError({
+        message: "Invalid data",
+      });
     }
 
     const hashedPassword = await generateHashedPassword(password);
@@ -33,7 +39,9 @@ export const registerUser = async (
     const user = await createUser(email, username, hashedPassword, next);
 
     if (!user) {
-      return res.status(500).json({ error: "Server error" });
+      throw new ServerError({
+        message: "Failed to create user",
+      });
     }
 
     const accessToken = await generateToken(user.id, "access", next);
@@ -53,18 +61,21 @@ export const registerUser = async (
     res.cookie("refreshToken", newRefreshToken, {
       maxAge: 7 * 24 * 60 * 60 * 1000,
       httpOnly: true,
-      signed: true,
       sameSite: "none",
       secure: true,
       expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });
 
     res.send({
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      token: accessToken,
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+      },
+      token: {
+        accessToken,
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+      },
     });
   } catch (error: any) {
     next(error);
@@ -127,18 +138,21 @@ export const loginUser = async (
     res.cookie("refreshToken", newRefreshToken, {
       maxAge: 7 * 24 * 60 * 60 * 1000,
       httpOnly: true,
-      signed: true,
       sameSite: "none",
       secure: true,
       expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });
 
     res.send({
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      token: accessToken,
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+      user: {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+      },
+      token: {
+        accessToken,
+        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+      },
     });
   } catch (e) {
     next(e);
@@ -164,9 +178,7 @@ export const getMe = async (
     }
 
     res.send({
-      id: user.id,
-      email: user.email,
-      username: user.username,
+      user: { id: user.id, email: user.email, username: user.username },
     });
   } catch (e) {
     next(e);
@@ -218,33 +230,6 @@ export const handleRefreshToken = async (
   res: Response,
   next: NextFunction
 ) => {
-  // const refreshToken = req.cookies["refreshToken"];
-
-  // console.log(refreshToken);
-  // if (!refreshToken) {
-  //   return res.status(401).json({ error: "Unauthorized" });
-  // }
-
-  // console.log(refreshToken);
-
-  // try {
-  //   const payload: any = await verifyToken(refreshToken, "refresh");
-  //   const user = await checkUserExists(payload.userId);
-
-  //   if (!user) {
-  //     return res.status(403).json({ error: "Forbidden" });
-  //   }
-
-  //   const accessToken = await generateToken(user.id, "access", next);
-
-  //   res.send({
-  //     token: accessToken,
-  //     expiresAt: new Date(Date.now() + 15 * 60 * 1000),
-  //   });
-  // } catch (e) {
-  //   res.status(403).json({ error: "Forbidden" });
-  // }
-
   const cookies = req.cookies;
   if (!cookies?.refreshToken) {
     return res.status(401).json({ error: "Unauthorized" });
@@ -329,7 +314,6 @@ export const handleRefreshToken = async (
       res.cookie("refreshToken", newRefreshToken, {
         maxAge: 7 * 24 * 60 * 60 * 1000,
         httpOnly: true,
-        signed: true,
         sameSite: "none",
         secure: true,
         expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
