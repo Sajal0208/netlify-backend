@@ -3,14 +3,14 @@ import { authenticateToken } from "../middleware/authMiddleware";
 import {
   deployProject,
   deleteProject,
-  getProjects,
+  getProjectsByUser,
   getProjectById,
 } from "../controllers/projectController";
 const router = express.Router();
 
+router.get("/", authenticateToken, getProjectsByUser);
 router.post("/", authenticateToken, deployProject);
-router.delete("/:id", authenticateToken, deleteProject);
-router.get("/", authenticateToken, getProjects);
 router.get("/:id", authenticateToken, getProjectById);
+router.delete("/:id", authenticateToken, deleteProject);
 
 export default router;

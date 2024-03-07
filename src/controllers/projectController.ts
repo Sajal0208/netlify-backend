@@ -7,6 +7,8 @@ import {
 } from "../services/projectService";
 import { NextFunction, Request, Response } from "express";
 import { prisma } from "../lib/db";
+import NotFoundError from "../errors/NotFoundError";
+import UnauthorizedError from "../errors/UnauthorizedError";
 
 export interface IDeployProjectData {
   title: string;
@@ -80,6 +82,54 @@ export const deployProject = async (
 
 export const deleteProject = async (req: Request, res: Response) => {};
 
-export const getProjects = async (req: Request, res: Response) => {};
+export const getProjectsByUser = async (
+  req: CustomRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  const id = req?.user?.id;
 
-export const getProjectById = async (req: Request, res: Response) => {};
+  if (!id) {
+    throw new UnauthorizedError({
+      message: "Unauthorized",
+    });
+  }
+
+  try {
+    const projects = await prisma.projects.findMany({
+      where: {
+        authorId: id,
+      },
+    });
+
+    return res.json(projects);
+  } catch (e: any) {
+    next(e);
+  }
+};
+
+export const getProjectById = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  const { id } = req.params;
+
+  try {
+    const project = await prisma.projects.findUnique({
+      where: {
+        id: Number(id),
+      },
+    });
+
+    if (!project) {
+      throw new NotFoundError({
+        message: "Project not found",
+      });
+    }
+
+    return res.json(project);
+  } catch (e: any) {
+    next(e);
+  }
+};
