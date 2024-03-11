@@ -26,17 +26,30 @@ export const deployProject = async (
     const { title, repoUrl } = req.body;
 
     if (!req.user) {
-      return res.status(401).send("Unauthorized");
+      throw new UnauthorizedError({
+        message: "Unauthorized",
+      });
     }
 
     const user = await prisma.user.findUnique({
       where: {
         id: req.user.id,
       },
+      include: {
+        projects: true,
+      },
     });
 
     if (!user) {
-      return res.status(401).send("Unauthorized");
+      throw new UnauthorizedError({
+        message: "Unauthorized",
+      });
+    }
+
+    if (user.projects.length >= 2) {
+      return res.status(400).json({
+        message: "You have reached the maximum number of projects",
+      });
     }
 
     const { username, id } = user;
@@ -73,6 +86,7 @@ export const deployProject = async (
     return res.json({
       status: "queued",
       url: newProject.deployedLink,
+      projectId: newProject.id,
     });
   } catch (e) {
     console.log(e);
@@ -80,7 +94,27 @@ export const deployProject = async (
   }
 };
 
-export const deleteProject = async (req: Request, res: Response) => {};
+export const deleteProject = async (req: CustomRequest, res: Response) => {
+  const userId = req?.user?.id;
+
+  if (!userId) {
+    throw new UnauthorizedError({
+      message: "Unauthorized",
+    });
+  }
+
+  const { id } = req.params;
+
+  await prisma.projects.delete({
+    where: {
+      id: Number(id),
+    },
+  });
+
+  return res.json({
+    message: "Project deleted successfully",
+  });
+};
 
 export const getProjectsByUser = async (
   req: CustomRequest,
